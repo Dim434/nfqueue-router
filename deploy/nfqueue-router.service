@@ -1,0 +1,24 @@
+[Unit]
+Description=nfqueue-router persistent domain gateway (kernel NAT)
+Wants=network-online.target awg-quick@awg0.service awg-quick@wg-de.service
+After=network-online.target awg-quick@awg0.service awg-quick@wg-de.service
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/default/nfqueue-router
+StateDirectory=nfqueue-router
+StateDirectoryMode=0700
+RuntimeDirectory=nfqueue-router
+RuntimeDirectoryMode=0700
+ExecStartPre=/usr/local/sbin/nfqueue-router-refresh
+ExecStartPre=/usr/local/sbin/nfqueue-router-policy apply
+ExecStart=/usr/local/bin/nfqueue-router dns --nft-map --state-file /var/lib/nfqueue-router/leases.txt --domains-dir ${DOMAINS_DIR} --fake-cidr ${FAKE_CIDR} --dns-listen ${DNS_LISTEN} --upstream-dns ${UPSTREAM_DNS}
+ExecStartPost=/usr/local/sbin/nfqueue-router-ready
+# Keep kernel mappings and conntrack across daemon restarts/crashes.
+Restart=on-failure
+RestartSec=2s
+TimeoutStartSec=45s
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

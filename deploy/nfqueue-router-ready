@@ -1,0 +1,31 @@
+#!/usr/bin/env python3
+"""Check both DNS transports without relying on the upstream resolver."""
+import os, socket, struct, time
+host, port = os.environ['DNS_LISTEN'].rsplit(':', 1)
+query = struct.pack('!6H', 0x4e46, 0x7900, 1, 0, 0, 0) + b'\0\0\2\0\1'
+def exact(sock, count):
+    result = b''
+    while len(result) < count:
+        part = sock.recv(count - len(result))
+        if not part:
+            raise OSError('connection closed')
+        result += part
+    return result
+for attempt in range(100):
+    try:
+        for kind in (socket.SOCK_DGRAM, socket.SOCK_STREAM):
+            with socket.socket(socket.AF_INET, kind) as sock:
+                sock.settimeout(0.5)
+                sock.connect((host, int(port)))
+                if kind == socket.SOCK_STREAM:
+                    sock.sendall(struct.pack('!H', len(query)) + query)
+                    response = exact(sock, struct.unpack('!H', exact(sock, 2))[0])
+                else:
+                    sock.send(query)
+                    response = sock.recv(4096)
+                assert response[:2] == query[:2] and response[3] & 15 == 4
+        break
+    except (OSError, AssertionError):
+        time.sleep(0.1)
+else:
+    raise SystemExit('DNS readiness check failed')
